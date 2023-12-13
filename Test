@@ -1,0 +1,88 @@
+@Configuration
+public class IntegrationConfig {
+  
+  @Value("${mq.queue.name}")
+  private String queueName;
+  
+  @Bean
+  public QueueChannel mqQueue() {
+    return new QueueChannel(new DirectMessageChannel());
+  }
+  
+  @Bean
+  public MessageTransformer transformer() {
+    return new MessageTransformer() {
+      @Override
+      public Object transform(Message message) {
+        // Transform the message if necessary
+        return message;
+      }
+    };
+  }
+  
+  @Bean
+  public MessageHandler handler() {
+    return new MessageHandler() {
+      @Override
+      public void handleMessage(Message message) throws MessagingException {
+        try {
+          // Handle the message
+          System.out.println("Received message: " + message);
+        } catch (Exception e) {
+          // Exception handling
+          e.printStackTrace();
+        }
+      }
+    };
+  }
+  
+  @Bean
+  public IntegrationFlow flow() {
+    return IntegrationFlows.from(mqQueue())
+                           .transform(transformer())
+                           .handle(handler())
+                           .get();
+  }
+}
+
+@SpringBootApplication
+@EnableIntegration
+public class Application {
+  
+  @Autowired
+  private IntegrationConfig config;
+  
+  public static void main(String[] args) {
+    SpringApplication.run(Application.class, args);
+  }
+}
+
+@Component
+public class InboundAdapter extends AbstractMessageSource{
+  
+  @Autowired
+  private IntegrationConfig config;
+  
+  @Override
+  protected void doStart() {
+    super.doStart();
+    // Start the inbound channel adapter
+    getInputChannel().subscribe(message -> {
+      // Handle incoming messages
+      System.out.println("Received message from MQ: " + message);
+    });
+  }
+}
+
+@Component
+public class OutboundAdapter extends AbstractMessageSender{
+  
+  @Autowired
+  private IntegrationConfig config;
+  
+  @Override
+  protected void doSend(Message<?> message, SendCallback sendBack) {
+    // Send the message to the MQ queue
+    getOutputChannel().send(message, sendBack);
+  }
+}
